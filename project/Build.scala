@@ -6,8 +6,17 @@ import pl.project13.scala.sbt.JmhPlugin
 import sbtunidoc.Plugin.UnidocKeys._
 import sbtunidoc.Plugin.{ScalaUnidoc, unidocSettings}
 import scoverage.ScoverageKeys
+import dotty.tools.sbtplugin.DottyPlugin.autoImport._
 
 object Util extends Build {
+  lazy val dottySettings = List(
+    libraryDependencies := libraryDependencies.value.map(_.withDottyCompat()),
+    scalacOptions := {
+      if (isDotty.value) List("-language:Scala2")
+      else scalacOptions.value
+    }
+  ) ++ dotty.tools.sbtplugin.DottyPlugin.projectSettings
+
   val branch = Process("git" :: "rev-parse" :: "--abbrev-ref" :: "HEAD" :: Nil).!!.trim
   val suffix = if (branch == "master") "" else "-SNAPSHOT"
 
@@ -32,7 +41,7 @@ object Util extends Build {
   val sharedSettings = Seq(
     version := libVersion,
     organization := "com.twitter",
-    scalaVersion := "2.12.1",
+    // scalaVersion := "2.12.1",
     crossScalaVersions := Seq("2.11.8", "2.12.1"),
     // Workaround for a scaladoc bug which causes it to choke on empty classpaths.
     unmanagedClasspath in Compile += Attributed.blank(new java.io.File("doesnotexist")),
@@ -43,16 +52,6 @@ object Util extends Build {
     ),
 
     ScoverageKeys.coverageHighlighting := true,
-
-    scalacOptions := Seq(
-      // Note: Add -deprecation when deprecated methods are removed
-      "-target:jvm-1.8",
-      "-unchecked",
-      "-feature",
-      "-encoding", "utf8",
-      // Needs -missing-interpolator due to https://issues.scala-lang.org/browse/SI-8761
-      "-Xlint:-missing-interpolator"
-    ),
 
     // Note: Use -Xlint rather than -Xlint:unchecked when TestThriftStructure
     // warnings are resolved
@@ -94,7 +93,7 @@ object Util extends Build {
       else
         Some("releases"  at nexus + "service/local/staging/deploy/maven2")
     }
-  )
+  ) ++ dottySettings
 
   lazy val util = Project(
     id = "util",
@@ -184,7 +183,7 @@ object Util extends Build {
       guavaLib % "test",
       scalacheckLib,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4"
+      "org.scala-lang.modules" % "scala-parser-combinators_2.12" % "1.0.4"
     ),
     resourceGenerators in Compile <+=
       (resourceManaged in Compile, name, version) map { (dir, name, ver) =>
